@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hex RGB Converter</title>
+  <style>
+    body {
+      font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      margin: 0; min-height: 100vh; padding: 40px 16px; box-sizing: border-box;
+      background: linear-gradient(135deg, #ff9a8b 0%, #ff6a88 45%, #6a5af9 100%);
+      color: #1f1d2b;
+    }
+    main { max-width: 480px; margin: 0 auto; }
+    form { margin: 0; }
+    h1 { font-size: 28px; color: #fff; text-align: center; margin: 0 0 24px; letter-spacing: 0.5px; }
+    section {
+      background: rgba(255, 255, 255, 0.92); border-radius: 16px; padding: 20px;
+      margin-bottom: 20px; box-shadow: 0 10px 30px rgba(40, 20, 80, 0.25);
+    }
+    h2 { font-size: 18px; margin: 0 0 12px; color: #6a5af9; }
+    label { display: inline-block; margin: 4px 6px 4px 0; font-weight: 600; }
+    input {
+      padding: 8px 10px; font-size: 15px; border: 2px solid #e2dcff; border-radius: 8px; outline: none;
+    }
+    input:focus { border-color: #6a5af9; }
+    input.channel { width: 56px; }
+    button {
+      padding: 8px 18px; font-size: 15px; font-weight: 600; cursor: pointer; border: none; border-radius: 8px;
+      color: #fff; background: linear-gradient(90deg, #ff6a88, #6a5af9); margin-top: 4px;
+    }
+    button:hover { opacity: 0.9; }
+    .result { margin-top: 14px; font-weight: bold; font-family: Menlo, Consolas, monospace; font-size: 17px; min-height: 22px; }
+    .error { color: #c62828; font-family: inherit; font-size: 15px; }
+    .preview {
+      width: 100%; height: 56px; border-radius: 10px; margin-top: 10px;
+      border: 2px dashed #d6d0f5; box-sizing: border-box;
+    }
+  </style>
+</head>
+<body>
+  <main>
+  <h1>Hex RGB Converter</h1>
+
+  <!-- Hex to RGB -->
+  <section>
+    <h2>Hex to RGB</h2>
+    <!-- A form makes Enter in the input work like clicking Convert (manual test #17) -->
+    <form id="hex-form">
+      <label for="hex-input">Hex color</label>
+      <input id="hex-input" type="text" placeholder="#ff8800">
+      <button id="hex-convert" type="submit">Convert</button>
+    </form>
+    <div id="hex-result" class="result"></div>
+    <div id="hex-preview" class="preview"></div>
+  </section>
+
+  <!-- RGB to Hex -->
+  <section>
+    <h2>RGB to Hex</h2>
+    <form id="rgb-form">
+      <label for="rgb-input">R, G, B</label>
+      <input id="rgb-input" type="text" placeholder="154, 28, 212">
+      <button id="rgb-convert" type="submit">Convert</button>
+    </form>
+    <div id="rgb-result" class="result"></div>
+    <div id="rgb-preview" class="preview"></div>
+  </section>
+  </main>
+
+  <script>
+    /**
+     * Converts a hex color code to an RGB object.
+     * Same rules as hexToRgb.js in Exercise III:
+     * "#" is optional, case-insensitive, 3 or 6 digits.
+     * @param {string} hex - e.g. "#ff8800", "ff8800" or "#f80"
+     * @returns {{r: number, g: number, b: number}}
+     * @throws {Error} If hex is not a valid 3 or 6 digit hex color.
+     */
+    function hexToRgb(hex) {
+      let value = hex.trim().replace(/^#/, "");
+      if (value === "") {
+        throw new Error("Enter a hex color, e.g. #ff8800");
+      }
+      if (!/^([0-9a-f]{3}|[0-9a-f]{6})$/i.test(value)) {
+        throw new Error("Invalid hex color: " + hex.trim() +
+          ". Use 3 or 6 characters from 0-9 and a-f, e.g. #f80 or #ff8800");
+      }
+      // Expand shorthand: "f80" becomes "ff8800"
+      if (value.length === 3) {
+        value = value.split("").map((c) => c + c).join("");
+      }
+      return {
+        r: parseInt(value.slice(0, 2), 16),
+        g: parseInt(value.slice(2, 4), 16),
+        b: parseInt(value.slice(4, 6), 16),
+      };
+    }
+
+    /**
+     * Converts one RGB channel text to a number and checks the range.
+     * @param {string} text - The value typed by the user.
+     * @param {string} name - "Red (R)", "Green (G)" or "Blue (B)", used in the error message.
+     * @returns {number} An integer from 0 to 255.
+     * @throws {Error} If the text is not a whole number from 0 to 255.
+     */
+    function parseChannel(text, name) {
+      const value = text.trim();
+      if (!/^\d+$/.test(value) || Number(value) > 255) {
+        throw new Error(name + " must be a whole number from 0 to 255");
+      }
+      return Number(value);
+    }
+
+    /**
+     * Reads "154, 28, 212" (or "rgb(154, 28, 212)", the format shown by Hex to RGB)
+     * and returns the three channels.
+     * @param {string} text - The value typed or pasted by the user.
+     * @returns {{r: number, g: number, b: number}}
+     * @throws {Error} If there are not exactly three values, or one is out of range.
+     */
+    function parseRgb(text) {
+      // Allow an optional "rgb( ... )" wrapper, so a result can be pasted back.
+      const value = text.trim().replace(/^rgb\((.*)\)$/i, "$1");
+      if (value.trim() === "") {
+        throw new Error("Enter three values separated by commas, e.g. 154, 28, 212");
+      }
+      const parts = value.split(",");
+      if (parts.length !== 3) {
+        // Say how many values were found, so a missing value is easy to see (manual test #14)
+        throw new Error("Found " + parts.length + " value(s), but R, G and B need three, " +
+          "separated by commas, e.g. 154, 28, 212");
+      }
+      return {
+        r: parseChannel(parts[0], "Red (R)"),
+        g: parseChannel(parts[1], "Green (G)"),
+        b: parseChannel(parts[2], "Blue (B)"),
+      };
+    }
+
+    /**
+     * Converts RGB values to a lowercase hex color code.
+     * @param {number} r
+     * @param {number} g
+     * @param {number} b
+     * @returns {string} e.g. "#ff8800"
+     */
+    function rgbToHex(r, g, b) {
+         return "#" + [r, g, b].map((n) => n.toString(16).padStart(2, "0")).join("");
+    }
+
+    /** Shows a result or an error message, and updates the color preview box. */
+    function show(resultId, previewId, text, color, isError) {
+      const result = document.getElementById(resultId);
+      result.textContent = text;
+      result.classList.toggle("error", isError);
+      document.getElementById(previewId).style.backgroundColor = isError ? "" : color;
+    }
+
+    document.getElementById("hex-form").addEventListener("submit", (event) => {
+      event.preventDefault(); // stay on the page, do not reload
+      const hex = document.getElementById("hex-input").value;
+      try {
+        const { r, g, b } = hexToRgb(hex);
+        const rgb = "rgb(" + r + ", " + g + ", " + b + ")";
+        show("hex-result", "hex-preview", rgb, rgb, false);
+      } catch (err) {
+        show("hex-result", "hex-preview", err.message, "", true);
+      }
+    });
+
+    document.getElementById("rgb-form").addEventListener("submit", (event) => {
+      event.preventDefault();
+      try {
+        const { r, g, b } = parseRgb(document.getElementById("rgb-input").value);
+        const hex = rgbToHex(r, g, b);
+        show("rgb-result", "rgb-preview", hex, hex, false);
+      } catch (err) {
+        show("rgb-result", "rgb-preview", err.message, "", true);
+      }
+    });
+  </script>
+</body>
+</html>
